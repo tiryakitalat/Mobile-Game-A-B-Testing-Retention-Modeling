@@ -1,0 +1,71 @@
+import pandas as pd  # <--- Make sure this is added
+import src.config as cfg
+from src.models import fit_retention_curve
+from src.analysis import simulate_scenario
+
+def main():
+    print("--- A/B ANALYSIS ---\n")
+    
+    # Calculate parameters
+    params_A = fit_retention_curve(cfg.days_known, cfg.retention_a_known)
+    params_B = fit_retention_curve(cfg.days_known, cfg.retention_b_known)
+    
+    # A and B cases, scenario 1, 15 days period 
+    df_A_15 = simulate_scenario(params_A, cfg.daily_installs, cfg.purchase_rate_a, cfg.arppu, cfg.ad_imp_per_dau_a, cfg.ecpm_a, duration_days=15)
+    df_B_15 = simulate_scenario(params_B, cfg.daily_installs, cfg.purchase_rate_b, cfg.arppu, cfg.ad_imp_per_dau_b, cfg.ecpm_b, duration_days=15)
+    
+    res_A_15 = df_A_15.iloc[-1]
+    res_B_15 = df_B_15.iloc[-1]
+    
+    print(">>> A and B Results (15 Days Result)")
+    print(f"Variant A | DAU: {int(res_A_15['DAU']):,} | Revenue: ${res_A_15['Total_Revenue']:,.0f}")
+    print(f"Variant B | DAU: {int(res_B_15['DAU']):,} | Revenue: ${res_B_15['Total_Revenue']:,.0f}")
+    
+    # C Case, 30 days period
+    df_A_30 = simulate_scenario(params_A, cfg.daily_installs, cfg.purchase_rate_a, cfg.arppu, cfg.ad_imp_per_dau_a, cfg.ecpm_a, duration_days=30)
+    df_B_30 = simulate_scenario(params_B, cfg.daily_installs, cfg.purchase_rate_b, cfg.arppu, cfg.ad_imp_per_dau_b, cfg.ecpm_b, duration_days=30)
+    
+    rev_A_30 = df_A_30.iloc[-1]['Total_Revenue']
+    rev_B_30 = df_B_30.iloc[-1]['Total_Revenue']
+    
+    print(">>> C Results")
+    print(f"Variant A Revenue: ${rev_A_30:,.0f}")
+    print(f"Variant B Revenue: ${rev_B_30:,.0f}")
+    
+    # D Case, 30 days period, sales issued
+    # Deploy: apply_sale=True
+    df_A_Sale = simulate_scenario(params_A, cfg.daily_installs, cfg.purchase_rate_a, cfg.arppu, cfg.ad_imp_per_dau_a, cfg.ecpm_a, duration_days=30, apply_sale=True)
+    df_B_Sale = simulate_scenario(params_B, cfg.daily_installs, cfg.purchase_rate_b, cfg.arppu, cfg.ad_imp_per_dau_b, cfg.ecpm_b, duration_days=30, apply_sale=True)
+    
+    rev_A_Sale = df_A_Sale.iloc[-1]['Total_Revenue']
+    rev_B_Sale = df_B_Sale.iloc[-1]['Total_Revenue']
+    
+    print(">>> D Results (30 Days - Sales Issued)")
+    print(f"Variant A Revenue: ${rev_A_Sale:,.0f}")
+    print(f"Variant B Revenue: ${rev_B_Sale:,.0f}")
+    
+    # --- EXPORT DATA FOR VISUALIZATION ---
+    print("\n>>> Generating Master Excel Report...")
+    
+    output_filename = "simulation_results_master.xlsx"
+    
+    # Using ExcelWriter to save multiple sheets in one file
+    with pd.ExcelWriter(output_filename, engine='openpyxl') as writer:
+        
+        # Sheet 1: Case A vs B (15 Days)
+        # Merge on 'Day' to keep columns side-by-side for easy plotting
+        merge_15 = pd.merge(df_A_15, df_B_15, on='Day', suffixes=('_A', '_B'))
+        merge_15.to_excel(writer, sheet_name='Case_AB_15Days', index=False)
+        
+        # Sheet 2: Case C (30 Days - Standard)
+        merge_30 = pd.merge(df_A_30, df_B_30, on='Day', suffixes=('_A', '_B'))
+        merge_30.to_excel(writer, sheet_name='Case_C_30Days', index=False)
+        
+        # Sheet 3: Case D (30 Days - Sale Event)
+        merge_sale = pd.merge(df_A_Sale, df_B_Sale, on='Day', suffixes=('_A', '_B'))
+        merge_sale.to_excel(writer, sheet_name='Case_D_SaleEvent', index=False)
+        
+    print(f"Success: Data exported to '{output_filename}'.")
+
+if __name__ == "__main__":
+    main()
